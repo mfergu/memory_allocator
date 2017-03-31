@@ -22,8 +22,8 @@ int main( void ) {
 	}
 
 	for( int i = 4; i < 7; i++) {
-		temp[i]= (unsigned long*) calloc(sizeof(unsigned long), 128);
-		printf("callocing temp%u: %p\n",i, temp[i]);
+		temp[i]= (unsigned long*) malloc(sizeof(unsigned long)* 128);
+		printf("mallocing temp%u: %p\n",i, temp[i]);
 		*temp[i] = temp[i];
 	}
 

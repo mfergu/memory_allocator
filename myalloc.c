@@ -31,6 +31,7 @@ void __attribute__ ((constructor)) myalloc_init(void) {
 
 void __attribute__ ((destructor)) myalloc_cleanup(void) {
 
+	close(fd);
 }
 
 T create_header( size_t size) {
@@ -98,15 +99,19 @@ void remove_page_from_cache( T* header, T** cache) {
 	size_t size = header->obj_size;
 	uint_fast16_t cache_id = find_slot( size);
 		
+	if( header->next != NULL) {
+		header->next->previous = header->previous;
+		cache[cache_id] = header->next;
+	}
+
 	if( header->previous != NULL) {
 		header->previous->next = header->next;
 		cache[cache_id] = header->previous;
 	}
 
-	if( header->next != NULL) {
-		header->next->previous = header->previous;
-		cache[cache_id] = header->next;
-	}
+	if( (header->previous == NULL) && (header->next == NULL)) {
+		cache[cache_id] = NULL;
+	}        
 
 	header->previous = header->next = NULL;
 }
@@ -158,8 +163,8 @@ void* malloc( size_t size){
 			user_space = temp->free_list;
 			temp->free_list = *temp->free_list;
 			
-		}
-		else {
+		} else {
+		
 		//there exists a page with that size object 
 			actual_addr = partial_pages[cache_id];
 			temp = ( (T*) actual_addr);
@@ -167,20 +172,16 @@ void* malloc( size_t size){
 
 			if( temp->available == 1) {
 				//if the front page of partial_pages is full add it to the full_pages 
-				
 				temp->available--;
 				user_space = temp->free_list;
 
-//				remove_page_from_cache( temp, partial_pages);
-//				add_page_to_cache( temp, full_pages);
-				
 				//copy of null page creation	
 				actual_addr = create_cache_page( size);
 				temp = (T*) actual_addr; 
 				add_page_to_cache(temp, partial_pages);
 
-			}
-			else {
+			} else {
+		
 				//if the partial_pages front isn't full 
 
 				temp->available--;
@@ -200,12 +201,14 @@ void* calloc( size_t count, size_t size) {
 	void* temp = malloc( total);
 	memset( temp, 0, total);
 	return temp;
+
 }
 
 void* realloc( void* ptr, size_t size) {
 
 	void* temp = malloc(size);
 	T* header = (T*) ptr;
+
 	if( size > header->obj_size) {
 		Memcpy( temp, ptr, header->obj_size);
 	} else {
@@ -224,38 +227,28 @@ void free( void* ptr) {
 
 	if( size > 1024) {
 		munmap( header, size + sizeof(T));
-	}
-	else {
+
+	} else {
 
 		header->available++;
 		uint_fast16_t cache_id = find_slot( size);
+	
 		if( header->available == 1) {
-
-//			remove_page_from_cache( header, full_pages[cache_id]);
+			//bring it from end of list to head
+			remove_page_from_cache( header, partial_pages[cache_id]);
 			add_page_to_cache( header, partial_pages[cache_id]);		
 			header->free_list = ptr;
-		}
-		else if( header->available == (PAGESIZE - sizeof(T)) / header->obj_size) { 
-/*
-			printf("partial[id]   : %p \n", partial_pages[cache_id]);
-			printf(" cache_avail  : %p\n", partial_pages[cache_id]->available);
-			printf("unmapping page: %p\n", header); 
-*/
+
+		} else if( header->available == (PAGESIZE - sizeof(T)) / header->obj_size) { 
+			//if page is empty remove it from list and unmap it	
 			remove_page_from_cache(header, partial_pages);
 			munmap( header, PAGESIZE);
-		}
-		else {
-	/*
-			printf("  hdr avai: %p \n", header->available);
-			printf("  hdr_fr_l: %p \n", header->free_list);
-	*/
+
+		} else {
+			//page is partially full 
 			uint_fast32_t* temp = (uint32_t*) ptr;
 			*temp = header->free_list;
 			header->free_list = temp;
-	/*
-			printf(" *hdr_fr_l: %p \n", *header->free_list);
-			printf("  hdr_fr_l: %p \n", header->free_list);
-	*/
 		}
 	}	
 }
@@ -266,8 +259,8 @@ void *Mmap(void *addr, size_t length, int prot, int flags,
         if( ( temp = mmap( addr, length, prot, flags,
                 fd, offset)) == MAP_FAILED) {
             perror(" mmap error\n");
-        }
-        else {
+
+        } else {
             return temp;
         }
 }
