@@ -42,9 +42,12 @@ T create_header( size_t size) {
 
 
 //finds the index of the segregated list to place the data
-uint_fast16_t find_slot( uint_fast16_t x) {
+uint_fast16_t find_slot( size_t x) {
 
-	uint_fast16_t i = 0, j = 2;
+	if( x <= 8) {
+		return 2;
+	}
+	uint_fast16_t i = 2, j = 8;
 	while( x > j ) {
 		j = j*2;
 		++i;
@@ -55,7 +58,7 @@ uint_fast16_t find_slot( uint_fast16_t x) {
 //finds the ceiling size required to place the data in the segregated list
 uint_fast16_t find_cache_size( uint_fast16_t x) {
 
-	uint_fast16_t i = 2;
+	uint_fast16_t i = 8;
 	while(x > i) {
 		i = i * 2;
 	}
@@ -75,18 +78,18 @@ uint_fast32_t* create_page( size_t size) {
 uint_fast32_t* create_cache_page( size_t size) {
 
 	uint_fast32_t* actual_addr = Mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-	uint_fast32_t* user_space;
 	T *temp = (T*)actual_addr;	
+
 	uint_fast16_t cache_id = find_cache_size(size);
 	*temp = create_header( cache_id);
 	temp->available = ( (PAGESIZE - sizeof(T)) / cache_id);			
 
 	//set the free_list ptr to the user_space 
-	user_space = actual_addr + (sizeof(T) >> 3);
+	uint_fast32_t* user_space = actual_addr + (sizeof(T) >> 3);
 	temp->free_list = user_space;
 
 	uint_fast32_t *temp_ptr = user_space;
-	for(uint_fast8_t i = 0; i < temp->available - 1; i++) {
+	for(size_t i = 0; i < temp->available-1; i++) {
 		*temp_ptr = (temp_ptr + (temp->obj_size >> 3));
 		temp_ptr += ((temp->obj_size) >> 3);
 	}
@@ -168,7 +171,20 @@ void* malloc( size_t size){
 		//there exists a page with that size object 
 			actual_addr = partial_pages[cache_id];
 			temp = ( (T*) actual_addr);
-			user_space = temp->free_list;
+			if(temp->available > 512) {
+			printf("temp->obj_size  = %u\n", temp->obj_size);
+			printf("temp->available = %u\n", temp->available);
+			}
+
+			if( temp->available == 0) {
+
+				actual_addr = create_cache_page( size);
+				temp = (T*) actual_addr; 
+				add_page_to_cache(temp, partial_pages);
+				temp->available--;
+				user_space = temp->free_list;
+
+			}
 
 			if( temp->available == 1) {
 				//if the front page of partial_pages is full add it to the full_pages 
@@ -204,15 +220,20 @@ void* calloc( size_t count, size_t size) {
 
 }
 
-void* realloc( void* ptr, size_t size) {
+//problem in realloc
+//relloc from small to large then large to small blocks
+//check for page header boundaries
+void* realloc( void* ptr, size_t new_size) {
 
-	void* temp = malloc(size);
-	T* header = (T*) ptr;
+	//malloc is working 
+	void* temp = malloc(new_size);
+	//heade
+	T *header =  ( T*) ( (uint_fast32_t) ptr & 0xFFFFFFFFF000);
 
-	if( size > header->obj_size) {
+	if( new_size > header->obj_size) {
 		Memcpy( temp, ptr, header->obj_size);
 	} else {
-		Memcpy( temp, ptr, size);
+		Memcpy( temp, ptr, new_size);
 	}
 		
 	free(ptr);	
@@ -235,8 +256,8 @@ void free( void* ptr) {
 	
 		if( header->available == 1) {
 			//bring it from end of list to head
-			remove_page_from_cache( header, partial_pages[cache_id]);
-			add_page_to_cache( header, partial_pages[cache_id]);		
+			remove_page_from_cache( header, partial_pages);
+			add_page_to_cache( header, partial_pages);		
 			header->free_list = ptr;
 
 		} else if( header->available == (PAGESIZE - sizeof(T)) / header->obj_size) { 
@@ -246,9 +267,11 @@ void free( void* ptr) {
 
 		} else {
 			//page is partially full 
-			uint_fast32_t* temp = (uint32_t*) ptr;
-			*temp = header->free_list;
-			header->free_list = temp;
+//			uint_fast32_t* temp = (uint32_t*) ptr;
+			uint_fast32_t* old_free = header->free_list;
+			uint_fast32_t** new_free = ptr;
+			*new_free = old_free;
+			header->free_list = new_free;
 		}
 	}	
 }

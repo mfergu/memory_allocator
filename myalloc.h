@@ -27,7 +27,7 @@ typedef struct header_t{
 	uint_fast32_t *free_list;
     struct header_t *previous, *next;                                                                                
     uint16_t obj_size;                                                                                     
-    uint_fast8_t available;                                                                                   
+    ssize_t available;                                                                                   
 }header_t;                                                                                                     
                                                                                                               
 /*
