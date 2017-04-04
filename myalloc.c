@@ -171,10 +171,6 @@ void* malloc( size_t size){
 		//there exists a page with that size object 
 			actual_addr = partial_pages[cache_id];
 			temp = ( (T*) actual_addr);
-			if(temp->available > 512) {
-			printf("temp->obj_size  = %u\n", temp->obj_size);
-			printf("temp->available = %u\n", temp->available);
-			}
 
 			if( temp->available == 0) {
 
@@ -186,7 +182,7 @@ void* malloc( size_t size){
 
 			}
 
-			if( temp->available == 1) {
+			else if( temp->available == 1) {
 				//if the front page of partial_pages is full add it to the full_pages 
 				temp->available--;
 				user_space = temp->free_list;
@@ -204,7 +200,6 @@ void* malloc( size_t size){
 				user_space = temp->free_list;
 				temp->free_list = *temp->free_list;
 			}
-			
 		}		
 	}
 	return user_space;
@@ -220,14 +215,10 @@ void* calloc( size_t count, size_t size) {
 
 }
 
-//problem in realloc
-//relloc from small to large then large to small blocks
-//check for page header boundaries
 void* realloc( void* ptr, size_t new_size) {
 
-	//malloc is working 
 	void* temp = malloc(new_size);
-	//heade
+
 	T *header =  ( T*) ( (uint_fast32_t) ptr & 0xFFFFFFFFF000);
 
 	if( new_size > header->obj_size) {

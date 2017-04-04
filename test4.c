@@ -32,10 +32,10 @@ int main(int argc, char **argv)
 			int j = rand() %1130 ;
 			if( k%3 == 0 || k%3 == 2) {
 				temp[i] = malloc(j);
-//				printf(" temp[%u] = malloc %u\n",i, j);
+				printf(" temp[%u] = malloc %u\n",i, j);
 			} else {
 				temp[i] = calloc(1, j);
-//				printf(" temp[%u] = calloc %u\n",i, j);
+				printf(" temp[%u] = calloc %u\n",i, j);
 			}
 		} while( k--);
 		
@@ -43,10 +43,9 @@ int main(int argc, char **argv)
 			int p = i;
 			do {
 				k = 10000;
-//				printf("made it to second loop\n");
 				do{ 
-					int j = rand() %1130;
-//					printf(" temp[%u] =realloc %u\n", p, j);
+					int j = rand() %1100;
+					printf(" temp[%u] =realloc %u\n", p, j);
 					temp[p] = realloc(temp[p],  j);		
 					for( int l = 0; l < j; l++) {
 						*(temp[p]+l) = 'a';
